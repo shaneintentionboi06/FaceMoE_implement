@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
-from FaceMoE import SwinFaceMoE
+from FaceMoE import SwinFaceMoE,MoEMLP
 from TrainingLoop import TinyFaceDataset
 def evaluate_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -18,6 +18,7 @@ def evaluate_model():
     model = SwinFaceMoE(num_face_identities=NUM_IDENTITIES)
     
     # Load the specific dictionary of weights we saved after training
+    model.moe_layer = MoEMLP(d_model=1024,hidden_dim=4096,num_experts=8,k=2)
     model.moe_layer.load_state_dict(torch.load("facemoe_adapters.pth"))
     model.to(device)
     
