@@ -6,7 +6,7 @@ from torch.cuda.amp import autocast, GradScaler
 from config import modelName,DATA_DIR
 from PIL import Image
 # Import the model we just built in the other file!
-from FaceMoE import SwinFaceMoE
+from FaceMoE import SwinFaceMoE, MoEMLP
 logging.set_verbosity_error()
 # ---------------------------------------------------------
 # 1. DATASET SETUP (The Placeholder)
@@ -87,77 +87,82 @@ class DummyTinyFaceDataset(Dataset):
 # ---------------------------------------------------------
 # 2. HYPERPARAMETERS & SETUP
 # ---------------------------------------------------------
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Starting Training on: {device.upper()}")
+def Main():
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Starting Training on: {device.upper()}")
 
 
-BATCH_SIZE = 4        # KEEP THIS LOW (2 or 4) for laptop GPUs!
-EPOCHS = 5
+    BATCH_SIZE = 32        # KEEP THIS LOW (2 or 4) for laptop GPUs!
+    EPOCHS = 5
 
-# Create the dataset first so we know exactly how many identities we have
-dataset = TinyFaceDataset(root_dir=DATA_DIR)
-NUM_IDENTITIES = len(dataset.classes) if hasattr(dataset, 'classes') and dataset.classes else 5139
+    # Create the dataset first so we know exactly how many identities we have
+    dataset = TinyFaceDataset(root_dir=DATA_DIR)
+    NUM_IDENTITIES = len(dataset.classes) if hasattr(dataset, 'classes') and dataset.classes else 5139
 
-# Initialize our custom model
-model = SwinFaceMoE(num_face_identities=NUM_IDENTITIES)
-model.to(device)
-model.train() # Set to training mode
+    # Initialize our custom model
+    model = SwinFaceMoE(num_face_identities=NUM_IDENTITIES)
+    model.moe_layer = MoEMLP(d_model=1024,hidden_dim=4096,num_experts=8,k=2)
+    model.to(device)
+    model.train() # Set to training mode
 
-# ---------------------------------------------------------
-# 3. TRAINING ENGINE
-# ---------------------------------------------------------
-dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+    # ---------------------------------------------------------
+    # 3. TRAINING ENGINE
+    # ---------------------------------------------------------
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-# Standard classification loss function
-criterion = nn.CrossEntropyLoss()
+    # Standard classification loss function
+    criterion = nn.CrossEntropyLoss()
 
-# The Optimizer: Notice we ONLY pass the parameters that require gradients!
-# Because we froze the backbone, it only trains the MoE Layer and Classifier.
-optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-4)
+    # The Optimizer: Notice we ONLY pass the parameters that require gradients!
+    # Because we froze the backbone, it only trains the MoE Layer and Classifier.
+    optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-4)
 
-# Modern PyTorch AMP Setup (Automatic Mixed Precision)
-use_amp = True if device == "cuda" else False
-scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    # Modern PyTorch AMP Setup (Automatic Mixed Precision)
+    use_amp = True if device == "cuda" else False
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
-# ---------------------------------------------------------
-# 4. THE TRAINING LOOP
-# ---------------------------------------------------------
-print("--- Beginning Training Loop ---")
-for epoch in range(EPOCHS):
-    start_time = time.time()
-    total_loss = 0
+    # ---------------------------------------------------------
+    # 4. THE TRAINING LOOP
+    # ---------------------------------------------------------
+    print("--- Beginning Training Loop ---")
+    for epoch in range(EPOCHS):
+        start_time = time.time()
+        total_loss = 0
+        
+        for batch_idx, (images, labels) in enumerate(dataloader):
+            # Move data to GPU
+            images, labels = images.to(device), labels.to(device)
+            
+            optimizer.zero_grad()
+            
+            # AUTOCAST: Automatically uses 16-bit math where safe to save memory
+            with torch.autocast(device_type=device, enabled=use_amp):
+                # 1. Forward Pass
+                predictions = model(pixel_values=images)
+                
+                # 2. Calculate Loss
+                loss = criterion(predictions, labels)
+                
+            # 3. Backward Pass (using the scaler for 16-bit math)
+            scaler.scale(loss).backward()
+            
+            # 4. Update Weights
+            scaler.step(optimizer)
+            scaler.update()
+            
+            total_loss += loss.item()
+            
+            if batch_idx % 10 == 0:
+                print(f"Epoch [{epoch+1}/{EPOCHS}] | Batch {batch_idx} | Loss: {loss.item():.4f}")
+                
+        epoch_time = time.time() - start_time
+        print(f"==> End of Epoch {epoch+1} | Avg Loss: {total_loss/len(dataloader):.4f} | Time: {epoch_time:.2f}s\n")
+
+    # ---------------------------------------------------------
+    # 5. SAVE THE FINISHED MODEL
+    # ---------------------------------------------------------
+    torch.save(model.moe_layer.state_dict(), "facemoe_adapters.pth")
+    print("Training Complete! MoE Weights saved to 'facemoe_adapters.pth'")
     
-    for batch_idx, (images, labels) in enumerate(dataloader):
-        # Move data to GPU
-        images, labels = images.to(device), labels.to(device)
-        
-        optimizer.zero_grad()
-        
-        # AUTOCAST: Automatically uses 16-bit math where safe to save memory
-        with torch.autocast(device_type=device, enabled=use_amp):
-            # 1. Forward Pass
-            predictions = model(pixel_values=images)
-            
-            # 2. Calculate Loss
-            loss = criterion(predictions, labels)
-            
-        # 3. Backward Pass (using the scaler for 16-bit math)
-        scaler.scale(loss).backward()
-        
-        # 4. Update Weights
-        scaler.step(optimizer)
-        scaler.update()
-        
-        total_loss += loss.item()
-        
-        if batch_idx % 10 == 0:
-            print(f"Epoch [{epoch+1}/{EPOCHS}] | Batch {batch_idx} | Loss: {loss.item():.4f}")
-            
-    epoch_time = time.time() - start_time
-    print(f"==> End of Epoch {epoch+1} | Avg Loss: {total_loss/len(dataloader):.4f} | Time: {epoch_time:.2f}s\n")
-
-# ---------------------------------------------------------
-# 5. SAVE THE FINISHED MODEL
-# ---------------------------------------------------------
-torch.save(model.moe_layer.state_dict(), "facemoe_adapters.pth")
-print("Training Complete! MoE Weights saved to 'facemoe_adapters.pth'")
+if __name__ == "__main__":
+    Main()
