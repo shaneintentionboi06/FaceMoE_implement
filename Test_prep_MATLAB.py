@@ -5,7 +5,7 @@ from transformers import AutoImageProcessor
 import scipy.io as sio # This library lets Python save MATLAB .mat files!
 
 # Import your custom model
-from facemoe_model import SwinFaceMoE
+from FaceMoE import SwinFaceMoE
 
 # ---------------------------------------------------------
 # 1. SETUP & LOAD TRAINED WEIGHTS
