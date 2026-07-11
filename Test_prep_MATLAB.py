@@ -3,9 +3,10 @@ import os
 from PIL import Image
 from transformers import AutoImageProcessor
 import scipy.io as sio # This library lets Python save MATLAB .mat files!
+from tqdm import tqdm
 
 # Import your custom model
-from FaceMoE import SwinFaceMoE
+from facemoe_model import SwinFaceMoE
 
 # ---------------------------------------------------------
 # 1. SETUP & LOAD TRAINED WEIGHTS
@@ -41,7 +42,8 @@ def extract_features_from_folder(folder_path):
     print(f"Extracting features for {len(image_files)} images in {folder_path}...")
     
     with torch.no_grad(): # No training math needed!
-        for img_name in image_files:
+        # Wrap the loop with tqdm to display a progress bar
+        for img_name in tqdm(image_files, desc=f"Processing {os.path.basename(folder_path)}", unit="img"):
             img_path = os.path.join(folder_path, img_name)
             image = Image.open(img_path).convert("RGB")
             
