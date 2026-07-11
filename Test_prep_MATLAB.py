@@ -6,7 +6,7 @@ import scipy.io as sio # This library lets Python save MATLAB .mat files!
 from tqdm import tqdm
 
 # Import your custom model
-from FaceMoE import SwinFaceMoE
+from FaceMoE import SwinFaceMoE,MoEMLP
 
 # ---------------------------------------------------------
 # 1. SETUP & LOAD TRAINED WEIGHTS
@@ -17,7 +17,7 @@ print(f"Extracting on: {device.upper()}")
 # We don't care about NUM_IDENTITIES here because we are bypassing the classifier,
 # but we need to pass a number to initialize the model class without errors.
 model = SwinFaceMoE(num_face_identities=5139)
-
+model.moe_layer = MoEMLP(d_model=1024,hidden_dim=4096,num_experts=8,k=2)
 # Load the weights you just trained!
 print("Loading trained MoE weights...")
 model.moe_layer.load_state_dict(torch.load("facemoe_adapters.pth", map_location=device))
@@ -68,9 +68,9 @@ def extract_features_from_folder(folder_path):
 # 3. RUN EXTRACTION AND SAVE TO MATLAB FORMAT
 # ---------------------------------------------------------
 # NOTE: Update these paths to point to the actual TinyFace test folders
-gallery_dir = "./dataset/tinyface/test/gallery"
-probe_dir = "./dataset/tinyface/test/probe"
-distractor_dir = "./dataset/tinyface/test/distractor"
+gallery_dir = "./Dataset/tinyface/Testing_Set/Gallery_Match"
+probe_dir = "./Dataset/tinyface/Testing_Set/Probe"
+distractor_dir = "./Dataset/tinyface/Testing_Set/Gallery_Distractor"
 
 # Extract features
 gallery_features = extract_features_from_folder(gallery_dir)
