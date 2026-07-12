@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoImageProcessor,logging
 from torch.cuda.amp import autocast, GradScaler
-from config import modelName,DATA_DIR
+from config import BaseModelName ,DATA_DIR
 from PIL import Image
 # Import the model we just built in the other file!
 from FaceMoE import SwinFaceMoE, MoEMLP
@@ -27,7 +27,7 @@ class TinyFaceDataset(Dataset):
         """
         self.root_dir = root_dir
         # Swin expects 224x224 after pre-processing, even if the raw image is 16x16
-        self.processor = AutoImageProcessor.from_pretrained("microsoft/swin-base-patch4-window7-224")
+        self.processor = AutoImageProcessor.from_pretrained(BaseModelName)
         
         self.image_paths = []
         self.labels = []
@@ -73,7 +73,7 @@ class DummyTinyFaceDataset(Dataset):
     def __init__(self, num_samples=100):
         self.num_samples = num_samples
         # Swin expects 224x224 after pre-processing, even if the raw image is 16x16
-        self.processor = AutoImageProcessor.from_pretrained(modelName)
+        self.processor = AutoImageProcessor.from_pretrained(BaseModelName)
 
     def __len__(self):
         return self.num_samples

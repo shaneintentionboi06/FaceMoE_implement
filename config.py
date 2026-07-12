@@ -4,8 +4,9 @@ from pathlib import Path
 ROOT_DIR = Path("./Dataset/tinyface/")
 DATA_DIR = ROOT_DIR.joinpath("./Training_Set")
 
-Feature_folder = ROOT_DIR.joinpath("./features")
+Feature_folder = Path("./features")
 Gallery_ids_mat = ROOT_DIR.joinpath('./Face_Identification_Evaluation/gallery_match_img_ID_pairs.mat')
 Probe_ids_mat = ROOT_DIR.joinpath('./Face_Identification_Evaluation/probe_img_ID_pairs.mat')
 
-modelName = "microsoft/swin-large-patch4-window12-384-in22k"
+BaseModelName = "microsoft/swin-large-patch4-window12-384-in22k"
+trainedModel = "facemoe_adapters_colab_large.pth"
