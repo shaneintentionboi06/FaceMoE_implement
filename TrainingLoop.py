@@ -100,8 +100,11 @@ def Main():
     NUM_IDENTITIES = len(dataset.classes) if hasattr(dataset, 'classes') and dataset.classes else 5139
 
     # Initialize our custom model
-    model = SwinFaceMoE(num_face_identities=NUM_IDENTITIES)
-    model.moe_layer = MoEMLP(d_model=1024,hidden_dim=4096,num_experts=8,k=2)
+    model = SwinFaceMoE(num_face_identities=NUM_IDENTITIES,model_name=BaseModelName)
+    # model.moe_layer = MoEMLP(d_model=1024,hidden_dim=4096,num_experts=8,k=2)
+    d_model = model.swin_backbone.config.hidden_size
+    print("Dimensions of the Model:",d_model)
+    model.moe_layer = MoEMLP(d_model=d_model,hidden_dim=d_model*4,num_experts=8,k=2)
     model.to(device)
     model.train() # Set to training mode
 

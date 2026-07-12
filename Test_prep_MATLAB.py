@@ -24,7 +24,8 @@ def Prep():
     # We don't care about NUM_IDENTITIES here because we are bypassing the classifier,
     # but we need to pass a number to initialize the model class without errors.
     model = SwinFaceMoE(num_face_identities=5139,model_name=BaseModelName)
-    model.moe_layer = MoEMLP(d_model=1024,hidden_dim=4096,num_experts=8,k=2)
+    d_model = model.swin_backbone.config.hidden_size
+    model.moe_layer = MoEMLP(d_model=d_model,hidden_dim=d_model*4,num_experts=8,k=2)
     # Load the weights you just trained!
     print("Loading trained MoE weights...")
     model.moe_layer.load_state_dict(torch.load(trainedModel, map_location=device))
